@@ -1,4 +1,4 @@
-import { ProductionFunction } from './types';
+import { ProductionFunction, MatchFunction } from './types';
 import { Trie } from './Trie';
 import { TokenOrKeyword } from './TokenOrKeyword/HasElementsAndSyntacticName';
 
@@ -9,7 +9,11 @@ export const isProductionFunction = (
   return possibleProduction != null
   && !isTrie(possibleProduction as object) 
     && typeof possibleProduction === 'function';
-  
+};
+
+export const isMatchFunction = (possibleMatchFunction: unknown ) 
+: possibleMatchFunction is MatchFunction => {
+  return possibleMatchFunction != null && typeof possibleMatchFunction === 'function';
 };
 
 export const isTrie = (maybeTrie: unknown): maybeTrie is Trie => {

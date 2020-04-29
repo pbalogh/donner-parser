@@ -1,12 +1,12 @@
 /* eslint-disable no-plusplus */
 import { ProductionArg, ProductionFunction, Term, MatchFunctionResult, MatchFunction } from './types';
-import { TokenOrKeyword } from './TokenOrKeyword/HasElementsAndSyntacticName';
-import { isTrie, isProductionFunction, isTokenOrKeyword } from './typeGuards';
+import { TokenOrKeyword, isToken } from './TokenOrKeyword/HasElementsAndSyntacticName';
+import { isTrie, isProductionFunction, isTokenOrKeyword, isMatchFunction } from './typeGuards';
 import { Keyword } from './TokenOrKeyword/Keyword';
 import { Token } from './TokenOrKeyword/Token';
 
 export class Trie {
-
+  static termThatMayHaveCausedError: TokenOrKeyword;
 
   parse(terms: string | Array<Term>): TokenOrKeyword[] | null {
     console.log('PARSING');
@@ -33,15 +33,31 @@ export class Trie {
     } while (needToKeepParsing && resultOfSinglePass.length > 1 && index < 5);
 
     if (resultOfSinglePass.length > 1) {
-      const problemItem: TokenOrKeyword = resultOfSinglePass[1] as TokenOrKeyword;
-      console.log('resultOfSinglePass are ', resultOfSinglePass);
-      const str = problemItem.flattenToString();
-      throw new Error(
-        `Error parsing: ${str} at character ${problemItem.characterIndex}`);
+      if(Trie.termThatMayHaveCausedError) {
+        console.log(`One of our matchFunctions told us the problem might be in ${ 
+          Trie.termThatMayHaveCausedError}`);
+        this.throwErrorForToken(Trie.termThatMayHaveCausedError);  
+      } else {
+
+        const problemItem: TokenOrKeyword = resultOfSinglePass[1] as TokenOrKeyword;
+        console.log('resultOfSinglePass are ', resultOfSinglePass);
+        this.throwErrorForToken(problemItem);  
+      
+      }
     }
     return resultOfSinglePass as TokenOrKeyword[];
   }
 
+  throwErrorForToken = (problemItem:TokenOrKeyword) => {
+    const str = problemItem.flattenToString();
+
+    const firstToken : Token = isToken(problemItem) ? 
+      problemItem : problemItem.flattenToTokens()[0];
+        
+    throw new Error(
+      `Error parsing: ${str} at character ${firstToken.characterIndex + 1} of line ${firstToken.lineIndex + 1}`);
+  
+  };
 
 
   singlePass(terms: string | Array<Term>, currentTrie: Trie, termsWeMatchedToDrillDownHere: Term[] = []): [TokenOrKeyword[], boolean] {
@@ -124,10 +140,18 @@ export class Trie {
     // setting up our trie's definitions before parse-time)
     if (ignoreFunction || retrievedValue !== undefined) {
       console.log('Found something: ', retrievedValue);
+      // We're not actually going to ignore the function completely.
+      // If we were handed a function as the term,
+      // we need to make sure it's added to the matchFunctions array
+      // so that it can be used (if necessary) to match elements in a sentence.
+      if(isMatchFunction( term)) {
+        this.matchFunctions.push(term);
+      }
       return retrievedValue;
     }
 
-    console.log('Found nothing yet, so will look at matchFunctions');
+    console.log('Found nothing in hashMap, so will look at matchFunctions, which are ', 
+      this.matchFunctions);
     // Normally, if the retrievedValue is undefined, we just return it.
     // But if the user has defined one or more matchFunctions,
     // we need to use those to see if we return:
@@ -138,14 +162,14 @@ export class Trie {
     // - undefined: that means our match function needed something and found the *wrong* thing
     // (e.g., we needed a mandatory vowel but found a consonant)
     if (this.matchFunctions.length > 0) {
-      return this.getValueFromMatchFunctions(key);
+      return this.getValueFromMatchFunctions(term);
     }
     return retrievedValue;
   };
 
   getValueFromMatchFunctions = (term: Term):
   Trie | ProductionFunction | undefined => {
-
+    
     // a matchFunction returns TRUE if the match is a success
     //
     // FALSE if the match should move on to the next trie,
@@ -164,10 +188,20 @@ export class Trie {
     
 
     for(const matchFunction of this.matchFunctions) {
-      if (matchFunction(term) === MatchFunctionResult.MATCH_FOUND) return this;
-      if (matchFunction(term) === MatchFunctionResult.END_REACHED) {
-        functionThatReachedEnd = matchFunction;
+      const result = matchFunction(term);
+
+      // success always means we immediately leave in triumph
+      if (result === MatchFunctionResult.MATCH_FOUND) {
+        console.log("Found a match, so I'm staying here in this trie");
+        return this;
       }
+      if (result === MatchFunctionResult.END_REACHED) {
+        console.log("Reached the end, so I'm leaving this trie");
+        functionThatReachedEnd = matchFunction;
+        if(matchFunction.cleanup != null) matchFunction.cleanup();
+      } else if(matchFunction.cleanup != null) matchFunction.cleanup();
+      // it failed, so reset it to its normal state
+      // (in case it is a stateful function)
     }
 
     if (functionThatReachedEnd != null) {
@@ -178,6 +212,7 @@ export class Trie {
       const trieOrProductionFunction = this.hashMap.get(functionThatReachedEnd)!;
 
       if (isTrie(trieOrProductionFunction)) {
+        console.log('The kinda-failing function told me to move on to trie ', trieOrProductionFunction);
         return trieOrProductionFunction.get(term);
       }
 
@@ -187,6 +222,12 @@ export class Trie {
 
       return trieOrProductionFunction;
     }
+
+    // This might have been an innocent mismatch,
+    // and a subsequent pass over our sentence will make everything work out fine.
+    // But just in case,
+    // we want to plant a flag on this one. 
+    Trie.termThatMayHaveCausedError = term as TokenOrKeyword;
 
     return undefined;
   };

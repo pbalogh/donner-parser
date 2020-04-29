@@ -19,7 +19,7 @@
         "type": "git",
         "url": "git+https://github.com/pbalogh/donner-parser.git"
     },
-    "keywords": [],
+    "keywords": ["parser", "grammar"],
     "author": "Peter Balogh",
     "license": "ISC",
     "bugs": {

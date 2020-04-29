@@ -1,2 +1,2 @@
-export const Greeter = (name: string) => `Hello ${name}`
-export * from './TrieSmarter'
+export * from './Trie';
+export * from './Tokenizer';

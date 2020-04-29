@@ -4,7 +4,7 @@ import { TokenOrKeyword } from './TokenOrKeyword/HasElementsAndSyntacticName';
 
 export type ProductionArg = string | ProductionFunction;
 
-export type Term = string | TokenOrKeyword;
+export type Term = string | TokenOrKeyword | MatchFunction;
 
 export interface ProductionFunction {
   (matches: TokenOrKeyword[]): TokenOrKeyword[];
@@ -12,6 +12,7 @@ export interface ProductionFunction {
 
 export interface MatchFunction {
   (term: Term): MatchFunctionResult;
+  cleanup? : () => void;
 }
 
 export enum MatchFunctionResult {

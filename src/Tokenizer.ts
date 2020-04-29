@@ -142,7 +142,7 @@ export class Tokenizer {
           currentStartingIndex, currentStartingLine)];
       }
     }
-    if (matchedToken == null) throw new Error(`Error tokenizing character '${sentence[0]}' at index ${currentStartingIndex} in line ${currentStartingLine}`);
+    if (matchedToken == null) throw new Error(`Error tokenizing '${sentence[0]}' at column ${currentStartingIndex + 1} in line ${currentStartingLine + 1}`);
     return [];
   }
 }

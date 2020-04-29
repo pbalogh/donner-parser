@@ -4,6 +4,7 @@ import { HasElementsAndSyntacticName, TokenOrKeyword } from '../TokenOrKeyword/H
 import { Token } from '../TokenOrKeyword/Token';
 import { Tokenizer } from '../Tokenizer';
 import { Keyword } from '../TokenOrKeyword/Keyword';
+import { MatchFunctionResult } from '../types';
 
 describe('replace-method and with-method', () => {
   let trie: Trie;
@@ -183,6 +184,114 @@ describe('replace-method and with-method', () => {
     }
   });
 
+  describe('match functions', () => {
 
+  
+    it('should succeed under the right circumstances and should have cleanup ability', () => {
+
+      const tokenizer = new Tokenizer();
+      tokenizer.replace(/^[a-zA-Z]+/).with('WORD');
+      tokenizer.replace(/^\(/).with('OPENPARENS');
+      tokenizer.replace(/^\)/).with('CLOSEPARENS');
+      tokenizer.replace(/^,/).with('COMMA');
+
+      const tokenSentence = tokenizer.tokenizeSentence('(a,b)');
+
+      let justSawWord = false;
+      let justSawComma = false;
+
+      const matchFunction = (tokenOrKeyword: TokenOrKeyword) => {
+        const { syntacticName } = tokenOrKeyword;
+        console.log('Inside my matchFunction, looking at syntacticName ', syntacticName);
+        console.log(`while justSawWord is ${  justSawWord  } and justSawComma is ${
+          justSawComma}`);
+        if(syntacticName === 'WORD') {
+          if(justSawWord) return MatchFunctionResult.FAILURE_CASE; 
+          justSawWord = true;
+          justSawComma = false;
+          console.log('matched!');
+          return MatchFunctionResult.MATCH_FOUND;
+        }
+        if(syntacticName === 'COMMA') {
+          if(justSawComma) return MatchFunctionResult.FAILURE_CASE; 
+          justSawComma = true;
+          justSawWord = false;
+          console.log('matched!');
+          return MatchFunctionResult.MATCH_FOUND;
+        }
+        console.log('end of match function');
+        
+        return MatchFunctionResult.END_REACHED;
+      };
+
+      // Adding cleanup - an optional function
+      // that allows us to reset our state 
+      // so that it is ready for the next time we call this function
+      matchFunction.cleanup = jest.fn();
+
+      trie
+        .replace('OPENPARENS', matchFunction, 'CLOSEPARENS').with('COMPLETE_ARGLIST');
+      const result: null | TokenOrKeyword[] = trie.parse(tokenSentence);
+      // eslint-disable-next-line no-console
+      console.log('In test, result is ', result);
+      if (result != null) {
+        expect(result.length).toBe(1);
+        expect(result[0].syntacticName).toBe('COMPLETE_ARGLIST');
+        expect(matchFunction.cleanup).toHaveBeenCalled();
+      } else {
+        throw new Error('Should not have been null');
+      }
+    });
+
+    it('should let match functions throw errors', () => {
+
+      const tokenizer = new Tokenizer();
+      tokenizer.replace(/^[a-zA-Z]+/).with('WORD');
+      tokenizer.replace(/^\(/).with('OPENPARENS');
+      tokenizer.replace(/^\)/).with('CLOSEPARENS');
+      tokenizer.replace(/^,/).with('COMMA');
+
+      const tokenSentence = tokenizer.tokenizeSentence('(a,,)');
+
+      let justSawWord = false;
+      let justSawComma = false;
+
+      const matchFunction = (tokenOrKeyword: TokenOrKeyword) => {
+        const { syntacticName } = tokenOrKeyword;
+        console.log('Inside my matchFunction, looking at syntacticName ', syntacticName);
+        console.log(`while justSawWord is ${  justSawWord  } and justSawComma is ${
+          justSawComma}`);
+        if(syntacticName === 'WORD') {
+          if(justSawWord) return MatchFunctionResult.FAILURE_CASE; 
+          justSawWord = true;
+          justSawComma = false;
+          console.log('matched!');
+          return MatchFunctionResult.MATCH_FOUND;
+        }
+        if(syntacticName === 'COMMA') {
+          if(justSawComma) return MatchFunctionResult.FAILURE_CASE; 
+          justSawComma = true;
+          justSawWord = false;
+          console.log('matched!');
+          return MatchFunctionResult.MATCH_FOUND;
+        }
+        console.log('end of match function');
+        return MatchFunctionResult.END_REACHED;
+      };
+      matchFunction.cleanup = () => {
+        justSawWord = false;
+        justSawComma = false;
+      };
+
+      trie
+        .replace('OPENPARENS', matchFunction, 'CLOSEPARENS').with('COMPLETE_ARGLIST');
+
+      try {
+        trie.parse(tokenSentence);
+      } catch(e) {
+        expect(e.message).toBe('Error parsing: , at character 4 of line 1');
+      }
+    });
+  });
 });
 

@@ -69,7 +69,7 @@ bar`;
     try {
       tokenizer.tokenizeSentence('AbC1234');
     } catch (e) {
-      expect(e.message).toBe("Error tokenizing character '1' at index 3");
+      expect(e.message).toBe("Error tokenizing '1' at column 4 in line 1");
     }
   });
 });
